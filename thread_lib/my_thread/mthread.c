@@ -1,40 +1,21 @@
 /****************************************************************************
  *
- * MODULE:             libJIP
+ * MODULE:             thread lib interface
  *
- * COMPONENT:          Thread.c
+ * COMPONENT:          mthreads.h
  *
- * REVISION:           $Revision: 53151 $
+ * REVISION:           $Revision: 52723 $
  *
- * DATED:              $Date: 2013-04-09 16:14:34 +0100 (Tue, 09 Apr 2013) $
+ * DATED:              $Date: 2016-01-04 17:04:13 $
  *
- * AUTHOR:             Matt Redfearn
+ * AUTHOR:             panchangtao
  *
  ****************************************************************************
  *
- * This software is owned by NXP B.V. and/or its supplier and is protected
- * under applicable copyright laws. All rights are reserved. We grant You,
- * and any third parties, a license to use this software solely and
- * exclusively on NXP products [NXP Microcontrollers such as JN5148, JN5142, JN5139]. 
- * You, and any third parties must reproduce the copyright and warranty notice
- * and any other legend of ownership on each copy or partial copy of the 
- * software.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
-
- * Copyright NXP B.V. 2012. All rights reserved
+ * Copyright panchangtao@gmail.com 2016. All rights reserved
  *
  ***************************************************************************/
+
 
 #include <pthread.h>
 #include <sched.h>
@@ -47,7 +28,7 @@
 #include <errno.h>
 #include <sys/time.h>
 
-#include <Threads.h>
+#include <mthread.h>
 
 #define DBG_THREADS 0
 #define DBG_LOCKS   0
@@ -73,8 +54,7 @@ static void thread_signal_handler(int sig)
     DBG_vPrintf(DBG_THREADS, "Signal %d received\n", sig);
 }
 
-
-teThreadStatus eThreadStart(tprThreadFunction prThreadFunction, tsThread *psThreadInfo, teThreadDetachState eDetachState)
+teThreadStatus mThreadStart(tprThreadFunction prThreadFunction, tsThread *psThreadInfo, teThreadDetachState eDetachState)
 {
     
     psThreadInfo->eState = E_THREAD_STOPPED;
@@ -94,7 +74,7 @@ teThreadStatus eThreadStart(tprThreadFunction prThreadFunction, tsThread *psThre
 
 		if (sigaction(THREAD_SIGNAL, &sa, NULL) == -1) 
 		{
-			perror("sigaction");
+			ERR_vPrintf(T_TRUE, "sigaction:%s\n", strerror(errno));
 		}
 		else
 		{
@@ -105,7 +85,7 @@ teThreadStatus eThreadStart(tprThreadFunction prThreadFunction, tsThread *psThre
     
     if (pthread_create(&psThreadInfo->pThread_Id, NULL, prThreadFunction, psThreadInfo))
     {
-        perror("Could not start thread");
+        ERR_vPrintf(T_TRUE, "Could not start thread:%s\n", strerror(errno));
         return E_THREAD_ERROR_FAILED;
     }
 
@@ -114,15 +94,14 @@ teThreadStatus eThreadStart(tprThreadFunction prThreadFunction, tsThread *psThre
         DBG_vPrintf(DBG_THREADS, "Detach Thread %p\n", psThreadInfo);
         if (pthread_detach(psThreadInfo->pThread_Id))
         {
-            perror("pthread_detach()");
+            ERR_vPrintf(T_TRUE, "pthread_detach():%s\n", strerror(errno));
             return E_THREAD_ERROR_FAILED;
         }
     }
     return  E_THREAD_OK;
 }
 
-
-teThreadStatus eThreadStop(tsThread *psThreadInfo)
+teThreadStatus mThreadStop(tsThread *psThreadInfo)
 {
     DBG_vPrintf(DBG_THREADS, "Stopping Thread %p\n", psThreadInfo);
     
@@ -140,7 +119,7 @@ teThreadStatus eThreadStop(tsThread *psThreadInfo)
             /* Thread is joinable */
             if (pthread_join(psThreadInfo->pThread_Id, NULL))
             {
-                perror("Could not join thread");
+                ERR_vPrintf(T_TRUE, "Could not join thread:%s\n", strerror(errno));
                 return E_THREAD_ERROR_FAILED;
             }
         }
@@ -156,8 +135,7 @@ teThreadStatus eThreadStop(tsThread *psThreadInfo)
     return  E_THREAD_OK;
 }
 
-
-teThreadStatus eThreadFinish(tsThread *psThreadInfo)
+teThreadStatus mThreadFinish(tsThread *psThreadInfo)
 {
     psThreadInfo->eState = E_THREAD_STOPPED;
     
@@ -168,18 +146,15 @@ teThreadStatus eThreadFinish(tsThread *psThreadInfo)
     return E_THREAD_OK; /* Control won't get here */
 }
 
-
-teThreadStatus eThreadYield(void)
+teThreadStatus mThreadYield(void)
 {
     sched_yield();
     return E_THREAD_OK;
 }
 
-
 /************************** Lock Functionality *******************************/
-teLockStatus eLockCreate(pthread_mutex_t *psLock)
+teLockStatus mLockCreate(pthread_mutex_t *psLock)
 {
-    /* Create a recursive mutex, as we need to allow the same thread to lock mutexes a number of times */
     pthread_mutexattr_t     attr;
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
@@ -194,16 +169,14 @@ teLockStatus eLockCreate(pthread_mutex_t *psLock)
     return E_LOCK_OK;
 }
 
-
-teLockStatus eLockDestroy(pthread_mutex_t *psLock)
+teLockStatus mLockDestroy(pthread_mutex_t *psLock)
 {
     pthread_mutex_destroy(psLock);
     DBG_vPrintf(DBG_LOCKS, "Lock Destroy: %p\n", psLock);
     return E_LOCK_OK;
 }
 
-
-teLockStatus eLockLock(pthread_mutex_t *psLock)
+teLockStatus mLockLock(pthread_mutex_t *psLock)
 {
     DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locking: %p\n", pthread_self(), psLock);
     pthread_mutex_lock(psLock);
@@ -212,8 +185,7 @@ teLockStatus eLockLock(pthread_mutex_t *psLock)
     return E_LOCK_OK;
 }
 
-
-teLockStatus eLockLockTimed(pthread_mutex_t *psLock, uint32 u32WaitTimeout)
+teLockStatus mLockLockTimed(pthread_mutex_t *psLock, uint32 u32WaitTimeout)
 {    
     struct timeval sNow;
     struct timespec sTimeout;
@@ -241,11 +213,9 @@ teLockStatus eLockLockTimed(pthread_mutex_t *psLock, uint32 u32WaitTimeout)
             return E_LOCK_ERROR_FAILED;
             break;
     }
-    
 }
 
-
-teLockStatus eLockTryLock(pthread_mutex_t *psLock)
+teLockStatus mLockTryLock(pthread_mutex_t *psLock)
 {
     DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx try locking: %p\n", pthread_self(), psLock);
     if (pthread_mutex_trylock(psLock) != 0)
@@ -258,8 +228,7 @@ teLockStatus eLockTryLock(pthread_mutex_t *psLock)
     return E_LOCK_OK;
 }
 
-
-teLockStatus eLockUnlock(pthread_mutex_t *psLock)
+teLockStatus mLockUnlock(pthread_mutex_t *psLock)
 {    
     DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx unlocking: %p\n", pthread_self(), psLock);
     pthread_mutex_unlock(psLock);
@@ -268,25 +237,29 @@ teLockStatus eLockUnlock(pthread_mutex_t *psLock)
 }
 
 
-/************************** Queue Functionality ******************************/
-
-
-
-
-
-teQueueStatus eQueueCreate(tsQueue *psQueue, uint32 u32Capacity)
+/*******************************************************************************
+** 函 数 名  : mQueueCreate
+** 功能描述  : 创建消息队列
+** 输入参数  : tsQueue *psQueue  
+             : uint32 u32Length  
+** 返 回 值  : 
+       
+** 日    期  : 2016年1月4日
+** 作    者  : PCT
+*******************************************************************************/
+teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32Length)
 {
-    psQueue->apvBuffer = malloc(sizeof(void *) * u32Capacity);
+    psQueue->apvBuffer = malloc(sizeof(void *) * u32Length);
     
     if (!psQueue->apvBuffer)
     {
         return E_QUEUE_ERROR_NO_MEM;
     }
     
-    psQueue->u32Capacity = u32Capacity;
+    psQueue->u32Length = u32Length;
     psQueue->u32Size = 0;
-    psQueue->u32In = 0;
-    psQueue->u32Out = 0;
+    psQueue->u32Front = 0;
+    psQueue->u32Rear = 0;
     
     pthread_mutex_init(&psQueue->mutex, NULL);
     pthread_cond_init(&psQueue->cond_space_available, NULL);
@@ -295,8 +268,16 @@ teQueueStatus eQueueCreate(tsQueue *psQueue, uint32 u32Capacity)
     return E_QUEUE_OK;
 }
 
-
-teQueueStatus eQueueDestroy(tsQueue *psQueue)
+/*******************************************************************************
+** 函 数 名  : mQueueDestroy
+** 功能描述  : 销毁创建的消息队列
+** 输入参数  : tsQueue *psQueue  
+** 返 回 值  : 
+       
+** 日    期  : 2016年1月4日
+** 作    者  : PCT
+*******************************************************************************/
+teQueueStatus mQueueDestroy(tsQueue *psQueue)
 {
     if (NULL == psQueue->apvBuffer)
     {
@@ -311,43 +292,72 @@ teQueueStatus eQueueDestroy(tsQueue *psQueue)
     return E_QUEUE_OK;
 }
 
-
-teQueueStatus eQueueQueue(tsQueue *psQueue, void *pvData)
+/*******************************************************************************
+** 函 数 名  : mQueueEnqueue
+** 功能描述  : 入队函数，如果空间已满，需要等待空间释放，然后广播队列中有数
+               据可用
+** 输入参数  : tsQueue *psQueue  
+             : void *pvData      
+** 返 回 值  : 
+       
+** 日    期  : 2016年1月4日
+** 作    者  : PCT
+*******************************************************************************/
+teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData)
 {
     pthread_mutex_lock(&psQueue->mutex);
-    while (psQueue->u32Size == psQueue->u32Capacity)
+    while (((psQueue->u32Rear + 1)%psQueue->u32Length) == psQueue->u32Front)
         pthread_cond_wait(&psQueue->cond_space_available, &psQueue->mutex);
-    psQueue->apvBuffer[psQueue->u32In] = pvData;
-    ++psQueue->u32Size;
+    psQueue->apvBuffer[psQueue->u32Rear] = pvData;
     
-    psQueue->u32In = (psQueue->u32In+1) % psQueue->u32Capacity;
+    psQueue->u32Rear = (psQueue->u32Rear+1) % psQueue->u32Length;
     
     pthread_mutex_unlock(&psQueue->mutex);
     pthread_cond_broadcast(&psQueue->cond_data_available);
     return E_QUEUE_OK;
 }
 
-
-teQueueStatus eQueueDequeue(tsQueue *psQueue, void **ppvData)
+/*******************************************************************************
+** 函 数 名  : mQueueDequeue
+** 功能描述  : 出队函数，需要等待队列中有数据可用，读出数据后需要广播队列中
+               空间可用
+** 输入参数  : tsQueue *psQueue  
+             : void **ppvData    
+** 返 回 值  : 
+       
+** 日    期  : 2016年1月4日
+** 作    者  : PCT
+*******************************************************************************/
+teQueueStatus mQueueDequeue(tsQueue *psQueue, void **ppvData)
 {
     pthread_mutex_lock(&psQueue->mutex);
-    while (psQueue->u32Size == 0)
+    while (psQueue->u32Front == psQueue->u32Rear)
         pthread_cond_wait(&psQueue->cond_data_available, &psQueue->mutex);
     
-    *ppvData = psQueue->apvBuffer[psQueue->u32Out];
-    --psQueue->u32Size;
+    *ppvData = psQueue->apvBuffer[psQueue->u32Front];
     
-    psQueue->u32Out = (psQueue->u32Out + 1) % psQueue->u32Capacity;
+    psQueue->u32Front = (psQueue->u32Front + 1) % psQueue->u32Length;
     pthread_mutex_unlock(&psQueue->mutex);
     pthread_cond_broadcast(&psQueue->cond_space_available);
     return E_QUEUE_OK;
 }
 
-
-teQueueStatus eQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeout, void **ppvData)
+/*******************************************************************************
+** 函 数 名  : mQueueDequeueTimed
+** 功能描述  : 具有延时等待功能的出队函数，可以设置等待时间然后返回，避免阻
+               塞
+** 输入参数  : tsQueue *psQueue       
+             : uint32 u32WaitTimeout  
+             : void **ppvData         
+** 返 回 值  : 
+       
+** 日    期  : 2016年1月4日
+** 作    者  : PCT
+*******************************************************************************/
+teQueueStatus mQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeout, void **ppvData)
 {
     pthread_mutex_lock(&psQueue->mutex);
-    while (psQueue->u32Size == 0)
+    while (psQueue->u32Front == psQueue->u32Rear)
     {
         struct timeval sNow;
         struct timespec sTimeout;
@@ -380,16 +390,13 @@ teQueueStatus eQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeout, void *
         }
     }
     
-    *ppvData = psQueue->apvBuffer[psQueue->u32Out];
-    --psQueue->u32Size;
+    *ppvData = psQueue->apvBuffer[psQueue->u32Front];
     
-    psQueue->u32Out = (psQueue->u32Out + 1) % psQueue->u32Capacity;
+    psQueue->u32Front = (psQueue->u32Front + 1) % psQueue->u32Length;
     pthread_mutex_unlock(&psQueue->mutex);
     pthread_cond_broadcast(&psQueue->cond_space_available);
     return E_QUEUE_OK;
 }
-
-
 
 uint32 u32AtomicAdd(volatile uint32 *pu32Value, uint32 u32Operand)
 {
