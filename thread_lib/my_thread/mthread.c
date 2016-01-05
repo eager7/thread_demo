@@ -30,9 +30,9 @@
 
 #include <mthread.h>
 
-#define DBG_THREADS 0
-#define DBG_LOCKS   0
-#define DBG_QUEUE   0
+#define DBG_THREADS 1
+#define DBG_LOCKS   1
+#define DBG_QUEUE   1
 
 #define THREAD_SIGNAL SIGUSR1
 
@@ -98,6 +98,7 @@ teThreadStatus mThreadStart(tprThreadFunction prThreadFunction, tsThread *psThre
             return E_THREAD_ERROR_FAILED;
         }
     }
+    DBG_vPrintf(DBG_THREADS, "Create Thread %p\n", psThreadInfo);
     return  E_THREAD_OK;
 }
 
@@ -250,14 +251,12 @@ teLockStatus mLockUnlock(pthread_mutex_t *psLock)
 teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32Length)
 {
     psQueue->apvBuffer = malloc(sizeof(void *) * u32Length);
-    
-    if (!psQueue->apvBuffer)
-    {
+    if (!psQueue->apvBuffer){
         return E_QUEUE_ERROR_NO_MEM;
     }
     
     psQueue->u32Length = u32Length;
-    psQueue->u32Size = 0;
+    //psQueue->u32Size = u32bufferSize;
     psQueue->u32Front = 0;
     psQueue->u32Rear = 0;
     
@@ -279,8 +278,7 @@ teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32Length)
 *******************************************************************************/
 teQueueStatus mQueueDestroy(tsQueue *psQueue)
 {
-    if (NULL == psQueue->apvBuffer)
-    {
+    if (NULL == psQueue->apvBuffer){
         return E_QUEUE_ERROR_FAILED;
     }
     free(psQueue->apvBuffer);
@@ -295,7 +293,7 @@ teQueueStatus mQueueDestroy(tsQueue *psQueue)
 /*******************************************************************************
 ** 函 数 名  : mQueueEnqueue
 ** 功能描述  : 入队函数，如果空间已满，需要等待空间释放，然后广播队列中有数
-               据可用
+               据可用，入队的内存需要手动申请，然后在出队地方释放
 ** 输入参数  : tsQueue *psQueue  
              : void *pvData      
 ** 返 回 值  : 
@@ -320,7 +318,7 @@ teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData)
 /*******************************************************************************
 ** 函 数 名  : mQueueDequeue
 ** 功能描述  : 出队函数，需要等待队列中有数据可用，读出数据后需要广播队列中
-               空间可用
+               空间可用，调用出队函数的地方需要释放入队分配的内存
 ** 输入参数  : tsQueue *psQueue  
              : void **ppvData    
 ** 返 回 值  : 
@@ -354,7 +352,7 @@ teQueueStatus mQueueDequeue(tsQueue *psQueue, void **ppvData)
 ** 日    期  : 2016年1月4日
 ** 作    者  : PCT
 *******************************************************************************/
-teQueueStatus mQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeout, void **ppvData)
+teQueueStatus mQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeMil, void **ppvData)
 {
     pthread_mutex_lock(&psQueue->mutex);
     while (psQueue->u32Front == psQueue->u32Rear)
@@ -364,8 +362,8 @@ teQueueStatus mQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeout, void *
         
         memset(&sNow, 0, sizeof(struct timeval));
         gettimeofday(&sNow, NULL);
-        sTimeout.tv_sec = sNow.tv_sec + (u32WaitTimeout/1000);
-        sTimeout.tv_nsec = (sNow.tv_usec + ((u32WaitTimeout % 1000) * 1000)) * 1000;
+        sTimeout.tv_sec = sNow.tv_sec + (u32WaitTimeMil/1000);
+        sTimeout.tv_nsec = (sNow.tv_usec + ((u32WaitTimeMil % 1000) * 1000)) * 1000;
         if (sTimeout.tv_nsec > 1000000000)
         {
             sTimeout.tv_sec++;
