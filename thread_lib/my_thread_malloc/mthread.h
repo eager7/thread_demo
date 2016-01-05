@@ -82,7 +82,6 @@ typedef struct
 {
     void **apvBuffer;
     uint32 u32Length;
-    uint32 u32Size;
     uint32 u32Front;
     uint32 u32Rear;
 
@@ -91,9 +90,9 @@ typedef struct
     pthread_cond_t cond_data_available;
 } tsQueue;
 
-teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32BufferSize, uint32 u32Length); 
+teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32Length); 
 teQueueStatus mQueueDestroy(tsQueue *psQueue);
-teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData, uint32 u32Length);
+teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData);
 teQueueStatus mQueueDequeue(tsQueue *psQueue, void **ppvData);
 teQueueStatus mQueueDequeueTimed(tsQueue *psQueue, uint32 u32WaitTimeMil, void **ppvData);
 

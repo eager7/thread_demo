@@ -248,23 +248,15 @@ teLockStatus mLockUnlock(pthread_mutex_t *psLock)
 ** 日    期  : 2016年1月4日
 ** 作    者  : PCT
 *******************************************************************************/
-teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32bufferSize, uint32 u32Length)
+teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32Length)
 {
     psQueue->apvBuffer = malloc(sizeof(void *) * u32Length);
     if (!psQueue->apvBuffer){
         return E_QUEUE_ERROR_NO_MEM;
     }
     
-    int i = 0;
-    for(i = 0; i < u32Length; i++){
-        psQueue->apvBuffer[i] = malloc(u32bufferSize);
-        if(psQueue->apvBuffer[i] == NULL){
-            goto ERR;
-        }
-    }
-    
     psQueue->u32Length = u32Length;
-    psQueue->u32Size = u32bufferSize;
+    //psQueue->u32Size = u32bufferSize;
     psQueue->u32Front = 0;
     psQueue->u32Rear = 0;
     
@@ -273,15 +265,6 @@ teQueueStatus mQueueCreate(tsQueue *psQueue, uint32 u32bufferSize, uint32 u32Len
     pthread_cond_init(&psQueue->cond_data_available, NULL);
     
     return E_QUEUE_OK;
-ERR:    
-    for(i = 0; i < u32Length; i++){
-        if(psQueue->apvBuffer[i] != NULL){
-            free(psQueue->apvBuffer[i]);
-        }
-    }
-    free(psQueue->apvBuffer);
-    
-    return E_QUEUE_ERROR_NO_MEM;
 }
 
 /*******************************************************************************
@@ -298,13 +281,6 @@ teQueueStatus mQueueDestroy(tsQueue *psQueue)
     if (NULL == psQueue->apvBuffer){
         return E_QUEUE_ERROR_FAILED;
     }
-
-    int i = 0;
-    for(i = 0; i < psQueue->u32Length; i++){
-        if(psQueue->apvBuffer[i] != NULL){
-            free(psQueue->apvBuffer[i]);
-        }
-    }
     free(psQueue->apvBuffer);
     
     pthread_mutex_destroy(&psQueue->mutex);
@@ -317,7 +293,7 @@ teQueueStatus mQueueDestroy(tsQueue *psQueue)
 /*******************************************************************************
 ** 函 数 名  : mQueueEnqueue
 ** 功能描述  : 入队函数，如果空间已满，需要等待空间释放，然后广播队列中有数
-               据可用
+               据可用，入队的内存需要手动申请，然后在出队地方释放
 ** 输入参数  : tsQueue *psQueue  
              : void *pvData      
 ** 返 回 值  : 
@@ -325,18 +301,12 @@ teQueueStatus mQueueDestroy(tsQueue *psQueue)
 ** 日    期  : 2016年1月4日
 ** 作    者  : PCT
 *******************************************************************************/
-teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData, uint32 u32Length)
+teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData)
 {
     pthread_mutex_lock(&psQueue->mutex);
     while (((psQueue->u32Rear + 1)%psQueue->u32Length) == psQueue->u32Front)
         pthread_cond_wait(&psQueue->cond_space_available, &psQueue->mutex);
-    //psQueue->apvBuffer[psQueue->u32Rear] = pvData;
-    memset(psQueue->apvBuffer[psQueue->u32Rear], 0, psQueue->u32Size);
-    if(u32Length < psQueue->u32Size){
-        memcpy(psQueue->apvBuffer[psQueue->u32Rear], pvData, u32Length);
-    }else{
-        memcpy(psQueue->apvBuffer[psQueue->u32Rear], pvData, psQueue->u32Size);
-    }   
+    psQueue->apvBuffer[psQueue->u32Rear] = pvData;
     
     psQueue->u32Rear = (psQueue->u32Rear+1) % psQueue->u32Length;
     
@@ -348,7 +318,7 @@ teQueueStatus mQueueEnqueue(tsQueue *psQueue, void *pvData, uint32 u32Length)
 /*******************************************************************************
 ** 函 数 名  : mQueueDequeue
 ** 功能描述  : 出队函数，需要等待队列中有数据可用，读出数据后需要广播队列中
-               空间可用
+               空间可用，调用出队函数的地方需要释放入队分配的内存
 ** 输入参数  : tsQueue *psQueue  
              : void **ppvData    
 ** 返 回 值  : 
