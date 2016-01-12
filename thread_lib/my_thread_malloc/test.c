@@ -16,7 +16,7 @@ static void *ProducerWork(void *ptr)
         memset(producer, 0, 100);
         sprintf(producer, "%d-%d", i, i);
         mQueueEnqueue(&tGoods, producer);
-        BLUE_vPrintf(T_TRUE, "Producer Goods:%d\n", i);
+        DBG_vPrintf(T_TRUE, "Producer Goods:%d\n", i);
         sleep(1);
     }
     mThreadFinish(privThread);
@@ -32,7 +32,7 @@ static void *ConsumerWork(void *ptr)
     for(i = 10; i > 5; i--)
     {
         mQueueDequeue(&tGoods, (void**)&p);
-        GREEN_vPrintf(T_TRUE, "Consumer Goods:%s\n", p);
+        NOT_vPrintf(T_TRUE, "Consumer Goods:%s\n", p);
         free(p);
         sleep(1);
     }
