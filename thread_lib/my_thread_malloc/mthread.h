@@ -31,9 +31,47 @@ typedef enum
 
 typedef enum
 {
-    E_THREAD_JOINABLE,
-    E_THREAD_DETACHED,
+    E_THREAD_JOINABLE,  /**< Thread is created so that it can be waited on and joined */
+    E_THREAD_DETACHED,  /**< Thread is created detached so all resources are automatically free'd at exit. */
 } teThreadDetachState;
+
+typedef enum
+{
+    /*This type of mutex does not detect deadlock. 
+      A thread attempting to relock this mutex without first unlocking it will deadlock. 
+      Attempting to unlock a mutex locked by a different thread results in undefined behaviour. 
+      Attempting to unlock an unlocked mutex results in undefined behaviour. */
+    E_NUM_PTHREAD_MUTEX_NORMAL,    
+    /*This type of mutex provides error checking. 
+      A thread attempting to relock this mutex without first unlocking it will return with an error. 
+      A thread attempting to unlock a mutex which another thread has locked will return with an error. 
+      A thread attempting to unlock an unlocked mutex will return with an error. */
+    E_NUM_PTHREAD_MUTEX_ERRORCHECK,
+    /*A thread attempting to relock this mutex without first unlocking it will succeed in locking the mutex. 
+      The relocking deadlock which can occur with mutexes of type PTHREAD_MUTEX_NORMAL cannot occur with this type of mutex. 
+      Multiple locks of this mutex require the same number of unlocks to release the mutex before another thread can acquire the mutex. 
+      A thread attempting to unlock a mutex which another thread has locked will return with an error. 
+      A thread attempting to unlock an unlocked mutex will return with an error.*/
+    E_NUM_PTHREAD_MUTEX_RECURSIVE,
+    /*Attempting to recursively lock a mutex of this type results in undefined behaviour. 
+      Attempting to unlock a mutex of this type which was not locked by the calling thread results in undefined behaviour. 
+      Attempting to unlock a mutex of this type which is not locked results in undefined behaviour. 
+      An implementation is allowed to map this mutex to one of the other mutex types. */
+    E_NUM_PTHREAD_MUTEX_DEFAULT,
+}teMutexType;
+
+typedef enum
+{
+    /*The process-shared attribute is set to PTHREAD_PROCESS_SHARED to permit a read-write lock to be operated upon 
+      by any thread that has access to the memory where the read-write lock is allocated, 
+      even if the read-write lock is allocated in memory that is shared by multiple processes.*/
+    E_NUM_PTHREAD_PROCESS_SHARED,
+    /*If the process-shared attribute is PTHREAD_PROCESS_PRIVATE, 
+      the read-write lock will only be operated upon by threads created within the same process as the thread that initialised the read-write lock; 
+      if threads of differing processes attempt to operate on such a read-write lock, the behaviour is undefined. 
+      The default value of the process-shared attribute is PTHREAD_PROCESS_PRIVATE. */
+    E_NUM_PTHREAD_PROCESS_PRIVATE,
+}teRwLockType;
 
 typedef struct
 {
@@ -63,12 +101,18 @@ typedef enum
     E_LOCK_ERROR_NO_MEM,
 } teLockStatus;
 
-teLockStatus mLockCreate(pthread_mutex_t *psLock);
+teLockStatus mLockCreate(pthread_mutex_t *psLock, teMutexType eMutexType);
 teLockStatus mLockDestroy(pthread_mutex_t *psLock);
 teLockStatus mLockLock(pthread_mutex_t *psLock);
 teLockStatus mMLockLockTimed(pthread_mutex_t *psLock, uint32 u32WaitTimeout);
 teLockStatus mLockTryLock(pthread_mutex_t *psLock);
 teLockStatus mLockUnlock(pthread_mutex_t *psLock);
+
+teLockStatus mLockCreateRW(pthread_rwlock_t *rwlock, teRwLockType eRwLockType);
+teLockStatus mLockDestroyRW(pthread_rwlock_t *rwlock);
+teLockStatus mLockLockRead(pthread_rwlock_t *rwlock);
+teLockStatus mLockLockWrite(pthread_rwlock_t *rwlock);
+teLockStatus mLockUnlockRW(pthread_rwlock_t *rwlock);
 
 typedef enum
 {

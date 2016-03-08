@@ -59,30 +59,30 @@ teThreadStatus mThreadStart(tprThreadFunction prThreadFunction, tsThread *psThre
     
     psThreadInfo->eState = E_THREAD_STOPPED;
     psThreadInfo->eThreadDetachState = eDetachState;
-	
-	static int iFirstTime = 1;
-	if (iFirstTime)
-	{
-		/* Set up sigmask to receive configured signal in the main thread. 
-		 * All created threads also get this signal mask, so all threads
-		 * get the signal. But we can use pthread_signal to direct it at one.
-		 */
-		struct sigaction sa;
-		sa.sa_handler = thread_signal_handler;
-		sa.sa_flags = 0;
-		sigemptyset(&sa.sa_mask);
 
-		if (sigaction(THREAD_SIGNAL, &sa, NULL) == -1) 
-		{
-			ERR_vPrintf(T_TRUE, "sigaction:%s\n", strerror(errno));
-		}
-		else
-		{
-			DBG_vPrintf(DBG_THREADS, "Signal action registered\n\r");
-			iFirstTime = 0;
-		}
-	}
-    
+    static int iFirstTime = 1;
+    if (iFirstTime)
+    {
+        /* Set up sigmask to receive configured signal in the main thread. 
+        * All created threads also get this signal mask, so all threads
+        * get the signal. But we can use pthread_signal to direct it at one.
+        */
+        struct sigaction sa;
+        sa.sa_handler = thread_signal_handler;
+        sa.sa_flags = 0;
+        sigemptyset(&sa.sa_mask);
+
+        if (sigaction(THREAD_SIGNAL, &sa, NULL) == -1) 
+        {
+            ERR_vPrintf(T_TRUE, "sigaction:%s\n", strerror(errno));
+        }
+        else
+        {
+            DBG_vPrintf(DBG_THREADS, "Signal action registered\n\r");
+            iFirstTime = 0;
+        }
+    }
+
     if (pthread_create(&psThreadInfo->pThread_Id, NULL, prThreadFunction, psThreadInfo))
     {
         ERR_vPrintf(T_TRUE, "Could not start thread:%s\n", strerror(errno));
@@ -154,11 +154,26 @@ teThreadStatus mThreadYield(void)
 }
 
 /************************** Lock Functionality *******************************/
-teLockStatus mLockCreate(pthread_mutex_t *psLock)
+teLockStatus mLockCreate(pthread_mutex_t *psLock, teMutexType eMutexType)
 {
     pthread_mutexattr_t     attr;
     pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+    switch(eMutexType)
+    {
+        case (E_NUM_PTHREAD_MUTEX_NORMAL):
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL);
+            break;
+        case (E_NUM_PTHREAD_MUTEX_RECURSIVE):
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+            break;
+        case (E_NUM_PTHREAD_MUTEX_DEFAULT):
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT);
+            break;
+        case (E_NUM_PTHREAD_MUTEX_ERRORCHECK):
+        default:
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+            break;
+    }
 
     if (pthread_mutex_init(psLock, &attr) != 0)
     {
@@ -170,6 +185,31 @@ teLockStatus mLockCreate(pthread_mutex_t *psLock)
     return E_LOCK_OK;
 }
 
+teLockStatus mLockCreateRW(pthread_rwlock_t *rwlock, teRwLockType eRwLockType)
+{
+    pthread_rwlockattr_t attr;
+    pthread_rwlockattr_init(&attr);
+    switch(eRwLockType)
+    {
+        case (E_NUM_PTHREAD_PROCESS_SHARED):
+            pthread_rwlockattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+            break;
+        case (E_NUM_PTHREAD_PROCESS_PRIVATE):
+        default:
+            pthread_rwlockattr_setpshared(&attr, PTHREAD_PROCESS_PRIVATE);
+            break;
+    }
+
+    if (pthread_rwlock_init(rwlock, &attr) != 0)
+    {
+        DBG_vPrintf(DBG_LOCKS, "Error initialising rwlock\n");
+        return E_LOCK_ERROR_FAILED;
+    }
+
+    DBG_vPrintf(DBG_LOCKS, "rwLock Create: %p\n", rwlock);
+    return E_LOCK_OK;
+}
+
 teLockStatus mLockDestroy(pthread_mutex_t *psLock)
 {
     pthread_mutex_destroy(psLock);
@@ -177,13 +217,56 @@ teLockStatus mLockDestroy(pthread_mutex_t *psLock)
     return E_LOCK_OK;
 }
 
+teLockStatus mLockDestroyRW(pthread_rwlock_t *rwlock)
+{
+    pthread_rwlock_destroy(rwlock);
+    DBG_vPrintf(DBG_LOCKS, "rwLock Destroy: %p\n", rwlock);
+    return E_LOCK_OK;
+}
+
 teLockStatus mLockLock(pthread_mutex_t *psLock)
 {
     DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locking: %p\n", pthread_self(), psLock);
-    pthread_mutex_lock(psLock);
-    DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locked: %p\n", pthread_self(), psLock);
-    
-    return E_LOCK_OK;
+    if(0 == pthread_mutex_lock(psLock))
+    {
+        DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locked: %p\n", pthread_self(), psLock);
+        return E_LOCK_OK;
+    }
+    else
+    {
+        ERR_vPrintf(T_TRUE, "Error Thread 0x%lx locked: %p\n", pthread_self(), psLock);
+        return E_LOCK_ERROR_FAILED;
+    }
+}
+
+teLockStatus mLockLockRead(pthread_rwlock_t *rwlock)
+{
+    DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locking: %p\n", pthread_self(), rwlock);
+    if(0 == pthread_rwlock_rdlock(rwlock))
+    {
+        DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locked: %p\n", pthread_self(), rwlock);
+        return E_LOCK_OK;
+    }
+    else
+    {
+        ERR_vPrintf(T_TRUE, "Error Thread 0x%lx locked: %p\n", pthread_self(), rwlock);
+        return E_LOCK_ERROR_FAILED;
+    }
+}
+
+teLockStatus mLockLockWrite(pthread_rwlock_t *rwlock)
+{
+    DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locking: %p\n", pthread_self(), rwlock);
+    if(0 == pthread_rwlock_wrlock(rwlock))
+    {
+        DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx locked: %p\n", pthread_self(), rwlock);
+        return E_LOCK_OK;
+    }
+    else
+    {
+        ERR_vPrintf(T_TRUE, "Error Thread 0x%lx locked: %p\n", pthread_self(), rwlock);
+        return E_LOCK_ERROR_FAILED;
+    }
 }
 
 teLockStatus mLockLockTimed(pthread_mutex_t *psLock, uint32 u32WaitTimeout)
@@ -232,11 +315,32 @@ teLockStatus mLockTryLock(pthread_mutex_t *psLock)
 teLockStatus mLockUnlock(pthread_mutex_t *psLock)
 {    
     DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx unlocking: %p\n", pthread_self(), psLock);
-    pthread_mutex_unlock(psLock);
-    DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx unlocked: %p\n", pthread_self(), psLock);
-    return E_LOCK_OK;
+    if(0 == pthread_mutex_unlock(psLock))
+    {
+        DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx unlocked: %p\n", pthread_self(), psLock);
+        return E_LOCK_OK;
+    }
+    else
+    {
+        ERR_vPrintf(T_TRUE, "Error Thread 0x%lx unlocked: %p\n", pthread_self(), psLock);
+        return E_LOCK_ERROR_FAILED;
+    }
 }
 
+teLockStatus mLockUnlockRW(pthread_rwlock_t *rwlock)
+{    
+    DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx unlocking: %p\n", pthread_self(), rwlock);
+    if(0 == pthread_rwlock_unlock(rwlock))
+    {
+        DBG_vPrintf(DBG_LOCKS, "Thread 0x%lx unlocked: %p\n", pthread_self(), rwlock);
+        return E_LOCK_OK;
+    }
+    else
+    {
+        ERR_vPrintf(T_TRUE, "Error Thread 0x%lx unlocked: %p\n", pthread_self(), rwlock);
+        return E_LOCK_ERROR_FAILED;
+    }
+}
 
 /*******************************************************************************
 ** º¯ Êý Ãû  : mQueueCreate
