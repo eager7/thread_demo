@@ -160,7 +160,7 @@ namespace mThread
         ~Thread();
 
         void create(detach_t detach, void *info);
-        void start(void);
+        void start();
         void stop();
         void exit();
 
